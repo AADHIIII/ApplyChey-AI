@@ -67,6 +67,8 @@ export const enhanceSection = async (content: string | string[], jobDescription:
 };
 
 export const deepDiveExperience = async (experience: Experience, jobDescription: string, numPoints: number = 15): Promise<string> => {
+    checkRateLimit();
+    
     try {
         const result = await api.deepDiveExperience({
             experience,
@@ -76,11 +78,15 @@ export const deepDiveExperience = async (experience: Experience, jobDescription:
         return result.data.text;
     } catch (error: any) {
         console.error("Error in deepDiveExperience:", error);
-        throw new GeminiApiError(error.message || 'Failed to deep dive experience', 'SERVER_ERROR');
+        const geminiError = new GeminiApiError(error.message || 'Failed to deep dive experience', 'SERVER_ERROR');
+        errorTracker.logError(geminiError, 'medium', { experienceId: experience.id, numPoints });
+        throw geminiError;
     }
 };
 
 export const updateResumeFromChat = async (instruction: string, currentResume: ResumeData, history: ChatMessage[]): Promise<ChatUpdateResponse> => {
+    checkRateLimit();
+    
     try {
         const result = await api.updateResumeFromChat({
             instruction,
@@ -90,7 +96,9 @@ export const updateResumeFromChat = async (instruction: string, currentResume: R
         return result.data;
     } catch (error: any) {
         console.error("Error in updateResumeFromChat:", error);
-        throw new GeminiApiError(error.message || 'Failed to update resume from chat', 'SERVER_ERROR');
+        const geminiError = new GeminiApiError(error.message || 'Failed to update resume from chat', 'SERVER_ERROR');
+        errorTracker.logError(geminiError, 'medium', { instruction });
+        throw geminiError;
     }
 };
 
@@ -100,6 +108,8 @@ export const getImprovementSuggestion = async (
     resumeData: ResumeData,
     jobDescription: string
 ): Promise<string> => {
+    checkRateLimit();
+    
     try {
         const result = await api.getImprovementSuggestion({
             parameterName,
@@ -110,6 +120,8 @@ export const getImprovementSuggestion = async (
         return result.data.text;
     } catch (error: any) {
         console.error("Error in getImprovementSuggestion:", error);
-        throw new GeminiApiError(error.message || 'Failed to get improvement suggestion', 'SERVER_ERROR');
+        const geminiError = new GeminiApiError(error.message || 'Failed to get improvement suggestion', 'SERVER_ERROR');
+        errorTracker.logError(geminiError, 'medium', { parameterName });
+        throw geminiError;
     }
 };
