@@ -1,13 +1,3 @@
-<div align="center">
-  <img width="1200" height="475" alt="ApplyChey" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-  <h1>ApplyChey - Enterprise Grade AI Resume Tailor</h1>
-  <p>
-    <strong>Build, tailor, and optimize your resume with the power of Gemini AI.</strong>
-  </p>
-</div>
-
----
-
 ## 🚀 Overview
 
 **ApplyChey** is a sophisticated, enterprise-ready resume building platform that leverages Generative AI to help job seekers stand out. It goes beyond simple template filling by offering intelligent content generation, ATS (Applicant Tracking System) optimization analysis, and dynamic PDF generation.
