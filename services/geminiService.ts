@@ -49,6 +49,8 @@ export const tailorResume = async (resumeData: ResumeData, jobDescription: strin
 };
 
 export const enhanceSection = async (content: string | string[], jobDescription: string, sectionType: 'summary' | 'experience' | 'project' | 'skills' | 'technologies'): Promise<string> => {
+    checkRateLimit();
+    
     try {
         const result = await api.enhanceSection({
             content,
@@ -58,7 +60,9 @@ export const enhanceSection = async (content: string | string[], jobDescription:
         return result.data.text;
     } catch (error: any) {
         console.error("Error in enhanceSection:", error);
-        throw new GeminiApiError(error.message || 'Failed to enhance section', 'SERVER_ERROR');
+        const geminiError = new GeminiApiError(error.message || 'Failed to enhance section', 'SERVER_ERROR');
+        errorTracker.logError(geminiError, 'medium', { sectionType, jobDescription });
+        throw geminiError;
     }
 };
 
