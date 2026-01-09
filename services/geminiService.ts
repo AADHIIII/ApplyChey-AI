@@ -29,6 +29,8 @@ const checkRateLimit = (): void => {
 };
 
 export const tailorResume = async (resumeData: ResumeData, jobDescription: string, resumeLength: number, targetScore: number, template: Template): Promise<TailoredResumeResponse> => {
+    checkRateLimit();
+    
     try {
         const result = await api.tailorResume({
             resumeData,
@@ -40,7 +42,9 @@ export const tailorResume = async (resumeData: ResumeData, jobDescription: strin
         return result.data;
     } catch (error: any) {
         console.error("Error in tailorResume:", error);
-        throw new GeminiApiError(error.message || 'Failed to tailor resume', 'SERVER_ERROR');
+        const geminiError = new GeminiApiError(error.message || 'Failed to tailor resume', 'SERVER_ERROR');
+        errorTracker.logError(geminiError, 'high', { resumeData, jobDescription });
+        throw geminiError;
     }
 };
 
