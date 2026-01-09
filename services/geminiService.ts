@@ -1,5 +1,7 @@
 import { api } from './api';
 import { type ResumeData, type TailoredResumeResponse, type Template, type Experience, type ChatMessage, type ChatUpdateResponse } from '../types';
+import { apiRateLimiter } from '../utils/rateLimiter';
+import { errorTracker } from '../utils/errorTracking';
 
 export type GeminiErrorType = 'RATE_LIMIT' | 'INVALID_REQUEST' | 'SERVER_ERROR' | 'EMPTY_RESPONSE' | 'UNKNOWN';
 
@@ -9,6 +11,22 @@ export class GeminiApiError extends Error {
         this.name = 'GeminiApiError';
     }
 }
+
+/**
+ * Check rate limit before making API call
+ */
+const checkRateLimit = (): void => {
+    if (!apiRateLimiter.canMakeCall()) {
+        const waitTime = apiRateLimiter.getTimeUntilNextCall();
+        const error = new GeminiApiError(
+            `Rate limit exceeded. Please wait ${waitTime} seconds before trying again.`,
+            'RATE_LIMIT'
+        );
+        errorTracker.logError(error, 'medium', { waitTime });
+        throw error;
+    }
+    apiRateLimiter.recordCall();
+};
 
 export const tailorResume = async (resumeData: ResumeData, jobDescription: string, resumeLength: number, targetScore: number, template: Template): Promise<TailoredResumeResponse> => {
     try {
