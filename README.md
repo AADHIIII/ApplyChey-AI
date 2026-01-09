@@ -27,6 +27,8 @@
 ### Prerequisites
 *   Node.js (v18 or higher)
 *   npm or yarn
+*   Firebase account (for authentication and database)
+*   Google Gemini API key
 
 ### Installation
 
@@ -42,18 +44,50 @@
     ```
 
 3.  **Environment Setup:**
-    Create a `.env.local` file in the root directory and add your keys:
-    ```env
-    VITE_GEMINI_API_KEY=your_gemini_api_key
-    VITE_FIREBASE_API_KEY=your_firebase_api_key
-    # ... other firebase config keys
+    Create a `.env` file in the root directory (copy from `.env.example`):
+    ```bash
+    cp .env.example .env
     ```
+    
+    Then fill in your credentials:
+    ```env
+    # Firebase Configuration (Get from Firebase Console)
+    VITE_FIREBASE_API_KEY=your_firebase_api_key
+    VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+    VITE_FIREBASE_PROJECT_ID=your_project_id
+    VITE_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
+    VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+    VITE_FIREBASE_APP_ID=your_app_id
+    VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+
+    # Google Gemini AI API Key (Get from https://aistudio.google.com/apikey)
+    VITE_GEMINI_API_KEY=your_gemini_api_key
+
+    # Rate Limiting (optional - defaults shown)
+    VITE_MAX_API_CALLS_PER_MINUTE=10
+    VITE_MAX_API_CALLS_PER_HOUR=50
+    ```
+
+    **Security Note:** Never commit your `.env` file. It's already in `.gitignore`.
 
 4.  **Run Development Server:**
     ```bash
     npm run dev
     ```
     The app will run at `http://localhost:3000`.
+
+## 🔐 Security Features
+
+This application implements comprehensive security measures:
+
+- **Environment Variable Protection**: All API keys stored securely in `.env`
+- **Rate Limiting**: Client-side API call limits to prevent abuse
+- **Input Validation**: Comprehensive validation and sanitization
+- **Error Boundaries**: Graceful error handling throughout the app
+- **Security Headers**: XSS, clickjacking, and MIME-type sniffing protection
+- **Secure Storage**: Encrypted local storage for sensitive data
+
+See [SECURITY.md](./SECURITY.md) for detailed security documentation.
 
 ## 🧪 Testing
 
