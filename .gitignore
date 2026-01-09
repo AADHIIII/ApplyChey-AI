@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -23,6 +28,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment Variables
-.env
-functions/.env
+# Firebase
+.firebase/
+*-debug.log
+.runtimeconfig.json
+
+# Functions
+functions/node_modules/
+functions/lib/
