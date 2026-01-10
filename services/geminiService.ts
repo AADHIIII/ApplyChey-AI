@@ -33,13 +33,15 @@ export const tailorResume = async (resumeData: ResumeData, jobDescription: strin
     checkRateLimit();
     
     try {
-        const result = await api.tailorResume({
-            resumeData,
-            jobDescription,
-            resumeLength,
-            targetScore,
-            template
-        });
+        const result = await withApiRetry(() => 
+            api.tailorResume({
+                resumeData,
+                jobDescription,
+                resumeLength,
+                targetScore,
+                template
+            })
+        );
         return result.data;
     } catch (error: any) {
         console.error("Error in tailorResume:", error);
@@ -53,11 +55,13 @@ export const enhanceSection = async (content: string | string[], jobDescription:
     checkRateLimit();
     
     try {
-        const result = await api.enhanceSection({
-            content,
-            jobDescription,
-            sectionType
-        });
+        const result = await withApiRetry(() =>
+            api.enhanceSection({
+                content,
+                jobDescription,
+                sectionType
+            })
+        );
         return result.data.text;
     } catch (error: any) {
         console.error("Error in enhanceSection:", error);
@@ -71,11 +75,13 @@ export const deepDiveExperience = async (experience: Experience, jobDescription:
     checkRateLimit();
     
     try {
-        const result = await api.deepDiveExperience({
-            experience,
-            jobDescription,
-            numPoints
-        });
+        const result = await withApiRetry(() =>
+            api.deepDiveExperience({
+                experience,
+                jobDescription,
+                numPoints
+            })
+        );
         return result.data.text;
     } catch (error: any) {
         console.error("Error in deepDiveExperience:", error);
@@ -89,11 +95,13 @@ export const updateResumeFromChat = async (instruction: string, currentResume: R
     checkRateLimit();
     
     try {
-        const result = await api.updateResumeFromChat({
-            instruction,
-            currentResume,
-            history
-        });
+        const result = await withApiRetry(() =>
+            api.updateResumeFromChat({
+                instruction,
+                currentResume,
+                history
+            })
+        );
         return result.data;
     } catch (error: any) {
         console.error("Error in updateResumeFromChat:", error);
@@ -112,12 +120,14 @@ export const getImprovementSuggestion = async (
     checkRateLimit();
     
     try {
-        const result = await api.getImprovementSuggestion({
-            parameterName,
-            parameterAnalysis,
-            resumeData,
-            jobDescription
-        });
+        const result = await withApiRetry(() =>
+            api.getImprovementSuggestion({
+                parameterName,
+                parameterAnalysis,
+                resumeData,
+                jobDescription
+            })
+        );
         return result.data.text;
     } catch (error: any) {
         console.error("Error in getImprovementSuggestion:", error);
