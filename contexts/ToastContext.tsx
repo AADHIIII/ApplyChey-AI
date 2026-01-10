@@ -3,11 +3,23 @@ import React, { createContext, useState, useContext, useCallback, ReactNode } fr
 import { AnimatePresence } from 'framer-motion';
 import { Toast, ToastProps } from '../components/ui/Toast';
 
-type ToastOptions = Omit<ToastProps, 'onDismiss'>;
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+type ToastOptions = Omit<ToastProps, 'onDismiss'> & {
+  action?: ToastAction;
+  duration?: number; // milliseconds, 0 = persistent
+  persistent?: boolean;
+};
+
 type AddToastFunction = (toast: ToastOptions) => void;
 
 interface ToastContextType {
   addToast: AddToastFunction;
+  removeToast: (id: number) => void;
+  clearAllToasts: () => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -24,25 +36,37 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setToasts(currentToasts => currentToasts.filter(toast => toast.id !== id));
   }, []);
 
+  const clearAllToasts = useCallback(() => {
+    setToasts([]);
+  }, []);
+
   const addToast = useCallback((toast: ToastOptions) => {
     const id = toastIdRef.current++;
+    const duration = toast.duration ?? (toast.persistent ? 0 : 5000);
+    
     setToasts(currentToasts => [...currentToasts, { ...toast, id }]);
-    setTimeout(() => {
-      removeToast(id);
-    }, 5000);
+    
+    // Auto-dismiss if not persistent
+    if (duration > 0) {
+      setTimeout(() => {
+        removeToast(id);
+      }, duration);
+    }
   }, [removeToast]);
 
   return (
-    <ToastContext.Provider value={{ addToast }}>
+    <ToastContext.Provider value={{ addToast, removeToast, clearAllToasts }}>
       {children}
       <div
         role="region"
         aria-live="assertive"
-        className="fixed top-4 right-4 z-50 w-full max-w-sm space-y-3"
+        className="fixed top-4 right-4 z-50 w-full max-w-sm space-y-3 pointer-events-none"
       >
         <AnimatePresence>
           {toasts.map(toast => (
-            <Toast key={toast.id} {...toast} onDismiss={() => removeToast(toast.id)} />
+            <div key={toast.id} className="pointer-events-auto">
+              <Toast {...toast} onDismiss={() => removeToast(toast.id)} />
+            </div>
           ))}
         </AnimatePresence>
       </div>
