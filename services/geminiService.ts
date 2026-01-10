@@ -2,6 +2,7 @@ import { api } from './api';
 import { type ResumeData, type TailoredResumeResponse, type Template, type Experience, type ChatMessage, type ChatUpdateResponse } from '../types';
 import { apiRateLimiter } from '../utils/rateLimiter';
 import { errorTracker } from '../utils/errorTracking';
+import { withApiRetry } from '../utils/retry';
 
 export type GeminiErrorType = 'RATE_LIMIT' | 'INVALID_REQUEST' | 'SERVER_ERROR' | 'EMPTY_RESPONSE' | 'UNKNOWN';
 
