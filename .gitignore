@@ -36,3 +36,7 @@ dist-ssr
 # Functions
 functions/node_modules/
 functions/lib/
+-e 
+# Environment files
+*.env
+*.env.*
