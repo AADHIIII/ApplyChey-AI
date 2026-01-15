@@ -3,10 +3,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getImprovementSuggestion = exports.updateResumeFromChat = exports.deepDiveExperience = exports.enhanceSection = exports.tailorResume = exports.GeminiApiError = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const genai_1 = require("@google/genai");
-// Initialize GoogleGenAI
-// Note: In production, use defineSecret or functions.config()
-const apiKey = process.env.GEMINI_API_KEY;
-const ai = apiKey ? new genai_1.GoogleGenAI({ apiKey }) : null;
+// Initialize GoogleGenAI lazily to avoid deployment timeouts
+// Read from environment variable (set via Firebase Console or CLI)
+const getAI = () => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error('GEMINI_API_KEY environment variable is not set');
+    }
+    return new genai_1.GoogleGenAI({ apiKey });
+};
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 1000;
 class GeminiApiError extends Error {
@@ -37,9 +42,7 @@ const categorizeError = (error) => {
     return new GeminiApiError('An unknown API error occurred', 'UNKNOWN');
 };
 const callGeminiApiWithRetry = async (model, contents, config = {}) => {
-    if (!ai) {
-        throw new GeminiApiError('Gemini API key is not configured.', 'SERVER_ERROR');
-    }
+    const ai = getAI();
     let lastError = null;
     for (let i = 0; i < MAX_RETRIES; i++) {
         try {
@@ -289,7 +292,7 @@ const chatUpdateResponseSchema = {
     required: ['resume', 'confirmationMessage']
 };
 // --- Cloud Functions ---
-exports.tailorResume = (0, https_1.onCall)({ cors: true }, async (request) => {
+exports.tailorResume = (0, https_1.onCall)({ cors: true, }, async (request) => {
     const { resumeData, jobDescription, resumeLength, targetScore, template } = request.data;
     if (!resumeData || !jobDescription) {
         throw new https_1.HttpsError('invalid-argument', 'Missing resumeData or jobDescription');
@@ -401,7 +404,7 @@ exports.tailorResume = (0, https_1.onCall)({ cors: true }, async (request) => {
         throw new https_1.HttpsError('internal', error.message || 'An error occurred while tailoring the resume.');
     }
 });
-exports.enhanceSection = (0, https_1.onCall)({ cors: true }, async (request) => {
+exports.enhanceSection = (0, https_1.onCall)({ cors: true, }, async (request) => {
     const { content, jobDescription, sectionType } = request.data;
     const isList = Array.isArray(content);
     const contentString = isList ? content.join(', ') : content;
@@ -450,7 +453,7 @@ exports.enhanceSection = (0, https_1.onCall)({ cors: true }, async (request) => 
         throw new https_1.HttpsError('internal', error.message);
     }
 });
-exports.deepDiveExperience = (0, https_1.onCall)({ cors: true }, async (request) => {
+exports.deepDiveExperience = (0, https_1.onCall)({ cors: true, }, async (request) => {
     const { experience, jobDescription, numPoints = 15 } = request.data;
     const prompt = `
         You are an expert resume writer and career strategist. Your task is to expand a brief work experience description into a highly detailed, comprehensive, and compelling list of achievements and responsibilities, tailored specifically to a target job description.
@@ -514,7 +517,7 @@ exports.deepDiveExperience = (0, https_1.onCall)({ cors: true }, async (request)
         throw new https_1.HttpsError('internal', error.message);
     }
 });
-exports.updateResumeFromChat = (0, https_1.onCall)({ cors: true }, async (request) => {
+exports.updateResumeFromChat = (0, https_1.onCall)({ cors: true, }, async (request) => {
     const { instruction, currentResume, history } = request.data;
     const prompt = `
         You are an intelligent resume assistant. Your task is to update a resume based on a user's instruction.
@@ -557,7 +560,7 @@ exports.updateResumeFromChat = (0, https_1.onCall)({ cors: true }, async (reques
         throw new https_1.HttpsError('internal', error.message);
     }
 });
-exports.getImprovementSuggestion = (0, https_1.onCall)({ cors: true }, async (request) => {
+exports.getImprovementSuggestion = (0, https_1.onCall)({ cors: true, }, async (request) => {
     const { parameterName, parameterAnalysis, resumeData, jobDescription } = request.data;
     const prompt = `
         You are a helpful AI resume assistant. The user wants to improve a specific aspect of their resume based on an analysis they received.

@@ -2,10 +2,15 @@ import { onCall, HttpsError, CallableRequest } from 'firebase-functions/v2/https
 import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
 import type { ResumeData, TailoredResumeResponse, Template, Experience, ChatMessage, ChatUpdateResponse } from './types';
 
-// Initialize GoogleGenAI
-// Note: In production, use defineSecret or functions.config()
-const apiKey = process.env.GEMINI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// Initialize GoogleGenAI lazily to avoid deployment timeouts
+// Read from environment variable (set via Firebase Console or CLI)
+const getAI = () => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error('GEMINI_API_KEY environment variable is not set');
+    }
+    return new GoogleGenAI({ apiKey });
+};
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 1000;
@@ -44,9 +49,7 @@ const callGeminiApiWithRetry = async (
     contents: string,
     config: any = {}
 ): Promise<GenerateContentResponse> => {
-    if (!ai) {
-        throw new GeminiApiError('Gemini API key is not configured.', 'SERVER_ERROR');
-    }
+    const ai = getAI();
 
     let lastError: GeminiApiError | null = null;
     for (let i = 0; i < MAX_RETRIES; i++) {
@@ -304,7 +307,7 @@ const chatUpdateResponseSchema = {
 
 // --- Cloud Functions ---
 
-export const tailorResume = onCall({ cors: true }, async (request: CallableRequest<{ resumeData: ResumeData, jobDescription: string, resumeLength: number, targetScore: number, template: Template }>) => {
+export const tailorResume = onCall({ cors: true,  }, async (request: CallableRequest<{ resumeData: ResumeData, jobDescription: string, resumeLength: number, targetScore: number, template: Template }>) => {
     const { resumeData, jobDescription, resumeLength, targetScore, template } = request.data;
 
     if (!resumeData || !jobDescription) {
@@ -423,7 +426,7 @@ export const tailorResume = onCall({ cors: true }, async (request: CallableReque
     }
 });
 
-export const enhanceSection = onCall({ cors: true }, async (request: CallableRequest<{ content: string | string[], jobDescription: string, sectionType: 'summary' | 'experience' | 'project' | 'skills' | 'technologies' }>) => {
+export const enhanceSection = onCall({ cors: true,  }, async (request: CallableRequest<{ content: string | string[], jobDescription: string, sectionType: 'summary' | 'experience' | 'project' | 'skills' | 'technologies' }>) => {
     const { content, jobDescription, sectionType } = request.data;
 
     const isList = Array.isArray(content);
@@ -477,7 +480,7 @@ export const enhanceSection = onCall({ cors: true }, async (request: CallableReq
     }
 });
 
-export const deepDiveExperience = onCall({ cors: true }, async (request: CallableRequest<{ experience: Experience, jobDescription: string, numPoints?: number }>) => {
+export const deepDiveExperience = onCall({ cors: true,  }, async (request: CallableRequest<{ experience: Experience, jobDescription: string, numPoints?: number }>) => {
     const { experience, jobDescription, numPoints = 15 } = request.data;
 
     const prompt = `
@@ -544,7 +547,7 @@ export const deepDiveExperience = onCall({ cors: true }, async (request: Callabl
     }
 });
 
-export const updateResumeFromChat = onCall({ cors: true }, async (request: CallableRequest<{ instruction: string, currentResume: ResumeData, history: ChatMessage[] }>) => {
+export const updateResumeFromChat = onCall({ cors: true,  }, async (request: CallableRequest<{ instruction: string, currentResume: ResumeData, history: ChatMessage[] }>) => {
     const { instruction, currentResume, history } = request.data;
 
     const prompt = `
@@ -590,7 +593,7 @@ export const updateResumeFromChat = onCall({ cors: true }, async (request: Calla
     }
 });
 
-export const getImprovementSuggestion = onCall({ cors: true }, async (request: CallableRequest<{ parameterName: string, parameterAnalysis: string, resumeData: ResumeData, jobDescription: string }>) => {
+export const getImprovementSuggestion = onCall({ cors: true,  }, async (request: CallableRequest<{ parameterName: string, parameterAnalysis: string, resumeData: ResumeData, jobDescription: string }>) => {
     const { parameterName, parameterAnalysis, resumeData, jobDescription } = request.data;
 
     const prompt = `
