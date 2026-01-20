@@ -60,7 +60,7 @@ export const sanitizeHtml = (html: string): string => {
  */
 export const containsMaliciousContent = (input: string): boolean => {
   const maliciousPatterns = [
-    /<script[\s\S]*?>[\ \S]*?<\/script>/gi,
+    /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
     /javascript:/gi,
     /on\w+\s*=/gi, // onclick, onerror, etc.
     /<iframe[\s\S]*?>/gi,

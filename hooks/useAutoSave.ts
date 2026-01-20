@@ -124,6 +124,9 @@ export function useAutoSave<T>(options: AutoSaveOptions<T>): AutoSaveStatus {
     }
   }, [enabled, save, localStorageKey, onError, onSuccess, saveToLocalStorage]);
 
+  // Track pending changes with ref to avoid sync setState in effect
+  const hasPendingChangesRef = useRef(false);
+
   // Auto-save effect
   useEffect(() => {
     // Skip first render
@@ -139,15 +142,19 @@ export function useAutoSave<T>(options: AutoSaveOptions<T>): AutoSaveStatus {
       clearTimeout(timeoutRef.current);
     }
 
-    // Mark as having pending changes
-    setStatus(prev => ({ ...prev, hasPendingChanges: true }));
+    // Mark as having pending changes using ref first, then update state in timeout
+    hasPendingChangesRef.current = true;
+    const pendingTimer = setTimeout(() => {
+      setStatus(prev => ({ ...prev, hasPendingChanges: true }));
+    }, 0);
 
-    // Set new timeout
+    // Set new timeout for save
     timeoutRef.current = setTimeout(() => {
       performSave(data);
     }, delay);
 
     return () => {
+      clearTimeout(pendingTimer);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }

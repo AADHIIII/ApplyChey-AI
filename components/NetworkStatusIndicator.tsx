@@ -11,26 +11,34 @@ export const NetworkStatusIndicator: React.FC<NetworkStatusIndicatorProps> = ({
   const networkStatus = useNetworkStatus();
   const [showOffline, setShowOffline] = useState(false);
   const [showReconnected, setShowReconnected] = useState(false);
-  const [wasOffline, setWasOffline] = useState(false);
+  const wasOfflineRef = React.useRef(false);
 
   useEffect(() => {
-    if (!networkStatus.isOnline) {
-      setShowOffline(true);
-      setWasOffline(true);
-      setShowReconnected(false);
-    } else if (wasOffline && networkStatus.isOnline) {
-      setShowOffline(false);
-      setShowReconnected(true);
-      
-      // Hide reconnected message after 3 seconds
+    // Handle offline state changes in a timeout to avoid sync setState in effect
+    const timer = setTimeout(() => {
+      if (!networkStatus.isOnline) {
+        setShowOffline(true);
+        wasOfflineRef.current = true;
+        setShowReconnected(false);
+      } else if (wasOfflineRef.current && networkStatus.isOnline) {
+        setShowOffline(false);
+        setShowReconnected(true);
+        wasOfflineRef.current = false;
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [networkStatus.isOnline]);
+
+  // Auto-hide reconnected message after 3 seconds
+  useEffect(() => {
+    if (showReconnected) {
       const timer = setTimeout(() => {
         setShowReconnected(false);
-        setWasOffline(false);
       }, 3000);
-      
       return () => clearTimeout(timer);
     }
-  }, [networkStatus.isOnline, wasOffline]);
+  }, [showReconnected]);
 
   if (!showOffline && !showReconnected) return null;
 
