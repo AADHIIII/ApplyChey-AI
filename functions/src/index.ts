@@ -1,6 +1,59 @@
 import { onCall, HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { initializeApp } from 'firebase-admin/app';
 import type { ResumeData, TailoredResumeResponse, Template, Experience, ChatMessage, ChatUpdateResponse } from './types';
+
+// Initialize Firebase Admin
+initializeApp();
+const db = getFirestore();
+
+// Rate limiting configuration
+const RATE_LIMITS = {
+    tailorResume: { maxRequests: 10, windowMinutes: 60 },      // 10 tailors per hour
+    enhanceSection: { maxRequests: 30, windowMinutes: 60 },    // 30 enhancements per hour
+    deepDiveExperience: { maxRequests: 20, windowMinutes: 60 }, // 20 deep dives per hour
+    updateResumeFromChat: { maxRequests: 50, windowMinutes: 60 }, // 50 chat updates per hour
+    getImprovementSuggestion: { maxRequests: 30, windowMinutes: 60 }, // 30 suggestions per hour
+};
+
+// Rate limiting function
+async function checkRateLimit(userId: string, functionName: keyof typeof RATE_LIMITS): Promise<void> {
+    const limit = RATE_LIMITS[functionName];
+    const now = Date.now();
+    const windowStart = now - (limit.windowMinutes * 60 * 1000);
+
+    const rateLimitRef = db.collection('rateLimits').doc(userId).collection('functions').doc(functionName);
+
+    const doc = await rateLimitRef.get();
+    const data = doc.data();
+
+    if (data) {
+        // Filter out old requests outside the window
+        const recentRequests = (data.requests || []).filter((timestamp: number) => timestamp > windowStart);
+
+        if (recentRequests.length >= limit.maxRequests) {
+            const oldestRequest = Math.min(...recentRequests);
+            const resetTime = Math.ceil((oldestRequest + limit.windowMinutes * 60 * 1000 - now) / 60000);
+            throw new HttpsError(
+                'resource-exhausted',
+                `Rate limit exceeded. You can make ${limit.maxRequests} ${functionName} requests per hour. Try again in ${resetTime} minutes.`
+            );
+        }
+
+        // Add new request timestamp
+        await rateLimitRef.set({
+            requests: [...recentRequests, now],
+            lastUpdated: FieldValue.serverTimestamp()
+        });
+    } else {
+        // First request
+        await rateLimitRef.set({
+            requests: [now],
+            lastUpdated: FieldValue.serverTimestamp()
+        });
+    }
+}
 
 // Initialize GoogleGenAI lazily to avoid deployment timeouts
 // Read from environment variable (set via Firebase Console or CLI)
@@ -307,7 +360,15 @@ const chatUpdateResponseSchema = {
 
 // --- Cloud Functions ---
 
-export const tailorResume = onCall({ cors: true,  }, async (request: CallableRequest<{ resumeData: ResumeData, jobDescription: string, resumeLength: number, targetScore: number, template: Template }>) => {
+export const tailorResume = onCall({ cors: true }, async (request: CallableRequest<{ resumeData: ResumeData, jobDescription: string, resumeLength: number, targetScore: number, template: Template }>) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'tailorResume');
+
     const { resumeData, jobDescription, resumeLength, targetScore, template } = request.data;
 
     if (!resumeData || !jobDescription) {
@@ -426,7 +487,15 @@ export const tailorResume = onCall({ cors: true,  }, async (request: CallableReq
     }
 });
 
-export const enhanceSection = onCall({ cors: true,  }, async (request: CallableRequest<{ content: string | string[], jobDescription: string, sectionType: 'summary' | 'experience' | 'project' | 'skills' | 'technologies' }>) => {
+export const enhanceSection = onCall({ cors: true }, async (request: CallableRequest<{ content: string | string[], jobDescription: string, sectionType: 'summary' | 'experience' | 'project' | 'skills' | 'technologies' }>) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'enhanceSection');
+
     const { content, jobDescription, sectionType } = request.data;
 
     const isList = Array.isArray(content);
@@ -480,7 +549,15 @@ export const enhanceSection = onCall({ cors: true,  }, async (request: CallableR
     }
 });
 
-export const deepDiveExperience = onCall({ cors: true,  }, async (request: CallableRequest<{ experience: Experience, jobDescription: string, numPoints?: number }>) => {
+export const deepDiveExperience = onCall({ cors: true }, async (request: CallableRequest<{ experience: Experience, jobDescription: string, numPoints?: number }>) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'deepDiveExperience');
+
     const { experience, jobDescription, numPoints = 15 } = request.data;
 
     const prompt = `
@@ -547,7 +624,15 @@ export const deepDiveExperience = onCall({ cors: true,  }, async (request: Calla
     }
 });
 
-export const updateResumeFromChat = onCall({ cors: true,  }, async (request: CallableRequest<{ instruction: string, currentResume: ResumeData, history: ChatMessage[] }>) => {
+export const updateResumeFromChat = onCall({ cors: true }, async (request: CallableRequest<{ instruction: string, currentResume: ResumeData, history: ChatMessage[] }>) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'updateResumeFromChat');
+
     const { instruction, currentResume, history } = request.data;
 
     const prompt = `
@@ -593,7 +678,15 @@ export const updateResumeFromChat = onCall({ cors: true,  }, async (request: Cal
     }
 });
 
-export const getImprovementSuggestion = onCall({ cors: true,  }, async (request: CallableRequest<{ parameterName: string, parameterAnalysis: string, resumeData: ResumeData, jobDescription: string }>) => {
+export const getImprovementSuggestion = onCall({ cors: true }, async (request: CallableRequest<{ parameterName: string, parameterAnalysis: string, resumeData: ResumeData, jobDescription: string }>) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'getImprovementSuggestion');
+
     const { parameterName, parameterAnalysis, resumeData, jobDescription } = request.data;
 
     const prompt = `
