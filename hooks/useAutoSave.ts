@@ -47,11 +47,11 @@ export function useAutoSave<T>(options: AutoSaveOptions<T>): AutoSaveStatus {
   const lastSavedDataRef = useRef<T | null>(null);
   const isFirstRender = useRef(true);
 
-  // Save to localStorage as backup
-  const saveToLocalStorage = useCallback((data: T) => {
+  // Save to localStorage as backup (async)
+  const saveToLocalStorage = useCallback(async (data: T) => {
     if (localStorageKey) {
       try {
-        secureStorage.setItem(localStorageKey, {
+        await secureStorage.setItem(localStorageKey, {
           data,
           timestamp: Date.now(),
           version: '1.0'
@@ -62,11 +62,11 @@ export function useAutoSave<T>(options: AutoSaveOptions<T>): AutoSaveStatus {
     }
   }, [localStorageKey]);
 
-  // Load from localStorage
-  const loadFromLocalStorage = useCallback((): T | null => {
+  // Load from localStorage (async)
+  const loadFromLocalStorage = useCallback(async (): Promise<T | null> => {
     if (localStorageKey) {
       try {
-        const stored = secureStorage.getItem<{ data: T; timestamp: number; version: string }>(localStorageKey);
+        const stored = await secureStorage.getItem<{ data: T; timestamp: number; version: string }>(localStorageKey);
         return stored?.data || null;
       } catch (error) {
         console.error('Failed to load from localStorage:', error);
@@ -105,7 +105,7 @@ export function useAutoSave<T>(options: AutoSaveOptions<T>): AutoSaveStatus {
       onSuccess?.();
     } catch (error) {
       const err = error instanceof Error ? error : new Error('Save failed');
-      
+
       // Log error
       errorTracker.logError(err, 'high', { context: 'auto-save' });
 
@@ -163,12 +163,15 @@ export function useAutoSave<T>(options: AutoSaveOptions<T>): AutoSaveStatus {
 
   // Try to recover from localStorage on mount
   useEffect(() => {
-    const backup = loadFromLocalStorage();
-    if (backup) {
-      console.log('Found unsaved changes in localStorage');
-      // You might want to prompt the user here
-      // For now, we'll just keep the backup available
-    }
+    const checkBackup = async () => {
+      const backup = await loadFromLocalStorage();
+      if (backup) {
+        console.log('Found unsaved changes in localStorage');
+        // You might want to prompt the user here
+        // For now, we'll just keep the backup available
+      }
+    };
+    checkBackup();
   }, [loadFromLocalStorage]);
 
   return status;

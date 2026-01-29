@@ -1,13 +1,9 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
+import { PDFViewer } from '@react-pdf/renderer';
 import { type ResumeData, type Template, type CustomTemplateSettings, type Diffs, type DiffViewMode } from '../types';
-import { ClassicTemplate } from './templates/ClassicTemplate';
-import { JuniorTemplate } from './templates/JuniorTemplate';
-import { CreativeTemplate } from './templates/CreativeTemplate';
-import { ConsultantTemplate } from './templates/ConsultantTemplate';
-import { ModernTechTemplate } from './templates/ModernTechTemplate';
-import { FaangTemplate } from './templates/FaangTemplate';
-import { CustomTemplate } from './templates/CustomTemplate';
+import { ResumePdfDocument } from './pdf/ResumePdfDocument';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface ResumePreviewProps {
   resumeData: ResumeData;
@@ -18,159 +14,63 @@ interface ResumePreviewProps {
   originalResumeData?: ResumeData;
 }
 
+const PdfErrorFallback = () => (
+    <div className="w-full h-[80vh] flex items-center justify-center bg-white rounded-md">
+        <div className="text-center p-8">
+            <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">Unable to render preview</h3>
+            <p className="text-gray-500 text-sm mb-4">There was an error generating the PDF preview.</p>
+            <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+                Reload Page
+            </button>
+        </div>
+    </div>
+);
+
 export const ResumePreview: React.FC<ResumePreviewProps> = ({ resumeData, template, customTemplateSettings, diffs, diffView, originalResumeData }) => {
-    const [containerRef, setContainerRef] = React.useState<HTMLDivElement | null>(null);
-    const [contentHeight, setContentHeight] = React.useState(0);
+    const pdfDocument = useMemo(() => (
+        <ResumePdfDocument
+            resumeData={resumeData}
+            template={template}
+            settings={customTemplateSettings}
+            diffs={diffView === 'diff' ? diffs : null}
+            diffView={diffView}
+            originalResumeData={originalResumeData}
+        />
+    ), [resumeData, template, customTemplateSettings, diffs, diffView, originalResumeData]);
 
-    const getTemplateComponent = () => {
-        const props = {
-            resumeData,
-            settings: customTemplateSettings,
-            diffs: diffView === 'diff' ? diffs : null,
-            originalResumeData,
-        };
+    // Validate resume data has minimum required fields
+    const isValidResume = resumeData.name && resumeData.name.trim().length > 0;
 
-        switch (template) {
-            case 'classic':
-                return <ClassicTemplate {...props} />;
-            case 'junior':
-                return <JuniorTemplate {...props} />;
-            case 'creative':
-                // The "Mid-Level" option in the selector maps to 'creative'
-                return <CreativeTemplate {...props} />;
-            case 'consultant':
-                return <ConsultantTemplate {...props} />;
-            case 'modern-tech':
-                return <ModernTechTemplate {...props} />;
-            case 'faang':
-                return <FaangTemplate {...props} />;
-            case 'custom':
-                return <CustomTemplate {...props} />;
-            default:
-                return <ModernTechTemplate {...props} />;
-        }
-    };
-
-    // Measure content height
-    React.useEffect(() => {
-        if (containerRef) {
-            const height = containerRef.scrollHeight;
-            setContentHeight(height);
-        }
-    }, [containerRef, resumeData]);
-
-    const PAGE_HEIGHT = 1056; // A4 height in pixels at 96 DPI (11 inches)
-    const hasMultiplePages = contentHeight > PAGE_HEIGHT;
+    if (!isValidResume) {
+        return (
+            <div className="w-full bg-gray-100 rounded-md p-2 sm:p-4">
+                <div className="w-full h-[80vh] flex items-center justify-center bg-white rounded-md">
+                    <div className="text-center p-8">
+                        <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <h3 className="text-lg font-semibold text-gray-600 mb-2">Add your name to see preview</h3>
+                        <p className="text-gray-400 text-sm">Fill in your resume details to generate a preview.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="w-full bg-gray-100 rounded-md p-2 sm:p-4">
-            <style>{`
-                .resume-preview-container {
-                    width: 100%;
-                    overflow-x: auto;
-                    overflow-y: auto;
-                }
-
-                .resume-pages-wrapper {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 24px;
-                    padding-bottom: 24px;
-                    min-width: fit-content;
-                }
-
-                .resume-page-container {
-                    position: relative;
-                    width: 816px;
-                    flex-shrink: 0;
-                }
-
-                .resume-page {
-                    width: 816px;
-                    height: 1056px;
-                    background: white;
-                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-                    overflow: hidden;
-                    position: relative;
-                }
-
-                .resume-content-wrapper {
-                    position: absolute;
-                    width: 816px;
-                    left: 0;
-                }
-
-                /* Prevent awkward page breaks */
-                .resume-content-wrapper section,
-                .resume-content-wrapper > div > div,
-                .resume-content-wrapper > div > aside > div,
-                .resume-content-wrapper h1,
-                .resume-content-wrapper h2,
-                .resume-content-wrapper h3 {
-                    break-inside: avoid;
-                    page-break-inside: avoid;
-                }
-
-                /* Keep experience items together */
-                .resume-content-wrapper article,
-                .resume-content-wrapper [class*="mb-"] {
-                    break-inside: avoid;
-                    page-break-inside: avoid;
-                }
-
-                .page-number {
-                    position: absolute;
-                    top: 8px;
-                    right: 8px;
-                    background: rgba(0, 0, 0, 0.75);
-                    color: white;
-                    padding: 4px 10px;
-                    border-radius: 4px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    z-index: 100;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-                }
-            `}</style>
-
-            <div className="resume-preview-container">
-                <div className="resume-pages-wrapper">
-                    {/* Render actual content once to measure */}
-                    <div
-                        ref={setContainerRef}
-                        style={{
-                            position: 'absolute',
-                            visibility: 'hidden',
-                            width: '816px',
-                            pointerEvents: 'none'
-                        }}
-                    >
-                        {getTemplateComponent()}
-                    </div>
-
-                    {/* Page 1 */}
-                    <div className="resume-page-container">
-                        <div className="page-number">Page 1</div>
-                        <div className="resume-page">
-                            <div className="resume-content-wrapper" style={{ top: 0 }}>
-                                {getTemplateComponent()}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Page 2 - Only show if content overflows */}
-                    {hasMultiplePages && (
-                        <div className="resume-page-container">
-                            <div className="page-number">Page 2</div>
-                            <div className="resume-page">
-                                <div className="resume-content-wrapper" style={{ top: `-${PAGE_HEIGHT}px` }}>
-                                    {getTemplateComponent()}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+            <div className="w-full overflow-auto rounded-md shadow">
+                <ErrorBoundary fallback={<PdfErrorFallback />}>
+                    <PDFViewer style={{ width: '100%', height: '80vh' }}>
+                        {pdfDocument}
+                    </PDFViewer>
+                </ErrorBoundary>
             </div>
         </div>
     );

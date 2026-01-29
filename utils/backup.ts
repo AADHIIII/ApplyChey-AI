@@ -16,6 +16,7 @@ export interface Backup<T> {
 export class BackupManager<T> {
   private storageKey: string;
   private maxBackups: number;
+  private cache: Backup<T>[] | null = null;
 
   constructor(storageKey: string, maxBackups: number = 10) {
     this.storageKey = `backup_${storageKey}`;
@@ -25,10 +26,10 @@ export class BackupManager<T> {
   /**
    * Create a backup
    */
-  createBackup(data: T, description?: string): string {
+  async createBackup(data: T, description?: string): Promise<string> {
     try {
-      const backups = this.getAllBackups();
-      
+      const backups = await this.getAllBackups();
+
       const backup: Backup<T> = {
         id: this.generateId(),
         timestamp: Date.now(),
@@ -42,7 +43,8 @@ export class BackupManager<T> {
       // Keep only max number of backups
       const trimmedBackups = backups.slice(0, this.maxBackups);
 
-      secureStorage.setItem(this.storageKey, trimmedBackups);
+      await secureStorage.setItem(this.storageKey, trimmedBackups);
+      this.cache = trimmedBackups;
 
       return backup.id;
     } catch (error) {
@@ -58,9 +60,15 @@ export class BackupManager<T> {
   /**
    * Get all backups
    */
-  getAllBackups(): Backup<T>[] {
+  async getAllBackups(): Promise<Backup<T>[]> {
+    if (this.cache) {
+      return this.cache;
+    }
+
     try {
-      return secureStorage.getItem<Backup<T>[]>(this.storageKey) || [];
+      const backups = await secureStorage.getItem<Backup<T>[]>(this.storageKey);
+      this.cache = backups || [];
+      return this.cache;
     } catch (error) {
       console.error('Failed to load backups:', error);
       return [];
@@ -68,29 +76,37 @@ export class BackupManager<T> {
   }
 
   /**
+   * Get all backups synchronously from cache
+   */
+  getAllBackupsSync(): Backup<T>[] {
+    return this.cache || [];
+  }
+
+  /**
    * Get a specific backup
    */
-  getBackup(id: string): Backup<T> | null {
-    const backups = this.getAllBackups();
+  async getBackup(id: string): Promise<Backup<T> | null> {
+    const backups = await this.getAllBackups();
     return backups.find(b => b.id === id) || null;
   }
 
   /**
    * Restore a backup
    */
-  restoreBackup(id: string): T | null {
-    const backup = this.getBackup(id);
+  async restoreBackup(id: string): Promise<T | null> {
+    const backup = await this.getBackup(id);
     return backup?.data || null;
   }
 
   /**
    * Delete a backup
    */
-  deleteBackup(id: string): void {
+  async deleteBackup(id: string): Promise<void> {
     try {
-      const backups = this.getAllBackups();
+      const backups = await this.getAllBackups();
       const filtered = backups.filter(b => b.id !== id);
-      secureStorage.setItem(this.storageKey, filtered);
+      await secureStorage.setItem(this.storageKey, filtered);
+      this.cache = filtered;
     } catch (error) {
       console.error('Failed to delete backup:', error);
     }
@@ -102,6 +118,7 @@ export class BackupManager<T> {
   clearAllBackups(): void {
     try {
       secureStorage.removeItem(this.storageKey);
+      this.cache = null;
     } catch (error) {
       console.error('Failed to clear backups:', error);
     }
@@ -110,9 +127,16 @@ export class BackupManager<T> {
   /**
    * Get the most recent backup
    */
-  getLatestBackup(): Backup<T> | null {
-    const backups = this.getAllBackups();
+  async getLatestBackup(): Promise<Backup<T> | null> {
+    const backups = await this.getAllBackups();
     return backups[0] || null;
+  }
+
+  /**
+   * Initialize by loading backups into cache
+   */
+  async initialize(): Promise<void> {
+    await this.getAllBackups();
   }
 
   /**
@@ -126,8 +150,8 @@ export class BackupManager<T> {
 /**
  * Export history for debugging
  */
-export function exportBackupHistory<T>(manager: BackupManager<T>): string {
-  const backups = manager.getAllBackups();
+export async function exportBackupHistory<T>(manager: BackupManager<T>): Promise<string> {
+  const backups = await manager.getAllBackups();
   return JSON.stringify(backups, null, 2);
 }
 

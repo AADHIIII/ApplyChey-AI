@@ -430,7 +430,7 @@ const consultantGenerator = (builder: PdfBuilder, data: ResumeData) => {
     builder.addTextWithSplitting(`Skills: ${data.skills.join(', ')}`, PAGE_MARGIN, CONTENT_WIDTH, builder.getFontSize('base'), PRIMARY_COLOR);
     builder.cursorY += builder.getSpacing('xs');
     if (data.certifications.length > 0) {
-        builder.addTextWithSplitting(`Certifications: ${c.map(c => `${c.name} (${c.issuer})`).join(', ')}`, PAGE_MARGIN, CONTENT_WIDTH, builder.getFontSize('base'), PRIMARY_COLOR);
+        builder.addTextWithSplitting(`Certifications: ${data.certifications.map(cert => `${cert.name} (${cert.issuer})`).join(', ')}`, PAGE_MARGIN, CONTENT_WIDTH, builder.getFontSize('base'), PRIMARY_COLOR);
     }
 
     builder.addSectionHeader = originalAddSectionHeader;

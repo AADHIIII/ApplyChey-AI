@@ -401,14 +401,21 @@ const App: React.FC = () => {
     }, [originalResume, deepDiveRetailorRequestId, isBatchDeepDiving]);
 
     const handleDownload = async () => {
+        const dataToPrint = diffView === 'tailored' && tailoredResume ? tailoredResume : originalResume;
+
+        // Validate minimum required fields before PDF generation
+        if (!dataToPrint.name || dataToPrint.name.trim().length === 0) {
+            addToast({ type: 'error', title: 'Missing Information', message: 'Please add your name before downloading.' });
+            return;
+        }
+
         setIsDownloading(true);
         try {
-            const dataToPrint = diffView === 'tailored' && tailoredResume ? tailoredResume : originalResume;
             await generatePdf(dataToPrint, selectedTemplate, customTemplateSettings);
             addToast({ type: 'success', title: 'Download Started', message: 'Your resume PDF is generating.' });
         } catch (error) {
             console.error(error);
-            addToast({ type: 'error', title: 'Download Failed', message: 'Could not generate PDF.' });
+            addToast({ type: 'error', title: 'Download Failed', message: 'Could not generate PDF. Please try again.' });
         } finally {
             setIsDownloading(false);
         }

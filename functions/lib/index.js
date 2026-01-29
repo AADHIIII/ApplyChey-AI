@@ -3,6 +3,49 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getImprovementSuggestion = exports.updateResumeFromChat = exports.deepDiveExperience = exports.enhanceSection = exports.tailorResume = exports.GeminiApiError = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const genai_1 = require("@google/genai");
+const firestore_1 = require("firebase-admin/firestore");
+const app_1 = require("firebase-admin/app");
+// Initialize Firebase Admin
+(0, app_1.initializeApp)();
+const db = (0, firestore_1.getFirestore)();
+// Rate limiting configuration
+const RATE_LIMITS = {
+    tailorResume: { maxRequests: 10, windowMinutes: 60 }, // 10 tailors per hour
+    enhanceSection: { maxRequests: 30, windowMinutes: 60 }, // 30 enhancements per hour
+    deepDiveExperience: { maxRequests: 20, windowMinutes: 60 }, // 20 deep dives per hour
+    updateResumeFromChat: { maxRequests: 50, windowMinutes: 60 }, // 50 chat updates per hour
+    getImprovementSuggestion: { maxRequests: 30, windowMinutes: 60 }, // 30 suggestions per hour
+};
+// Rate limiting function
+async function checkRateLimit(userId, functionName) {
+    const limit = RATE_LIMITS[functionName];
+    const now = Date.now();
+    const windowStart = now - (limit.windowMinutes * 60 * 1000);
+    const rateLimitRef = db.collection('rateLimits').doc(userId).collection('functions').doc(functionName);
+    const doc = await rateLimitRef.get();
+    const data = doc.data();
+    if (data) {
+        // Filter out old requests outside the window
+        const recentRequests = (data.requests || []).filter((timestamp) => timestamp > windowStart);
+        if (recentRequests.length >= limit.maxRequests) {
+            const oldestRequest = Math.min(...recentRequests);
+            const resetTime = Math.ceil((oldestRequest + limit.windowMinutes * 60 * 1000 - now) / 60000);
+            throw new https_1.HttpsError('resource-exhausted', `Rate limit exceeded. You can make ${limit.maxRequests} ${functionName} requests per hour. Try again in ${resetTime} minutes.`);
+        }
+        // Add new request timestamp
+        await rateLimitRef.set({
+            requests: [...recentRequests, now],
+            lastUpdated: firestore_1.FieldValue.serverTimestamp()
+        });
+    }
+    else {
+        // First request
+        await rateLimitRef.set({
+            requests: [now],
+            lastUpdated: firestore_1.FieldValue.serverTimestamp()
+        });
+    }
+}
 // Initialize GoogleGenAI lazily to avoid deployment timeouts
 // Read from environment variable (set via Firebase Console or CLI)
 const getAI = () => {
@@ -292,7 +335,13 @@ const chatUpdateResponseSchema = {
     required: ['resume', 'confirmationMessage']
 };
 // --- Cloud Functions ---
-exports.tailorResume = (0, https_1.onCall)({ cors: true, }, async (request) => {
+exports.tailorResume = (0, https_1.onCall)({ cors: true }, async (request) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'tailorResume');
     const { resumeData, jobDescription, resumeLength, targetScore, template } = request.data;
     if (!resumeData || !jobDescription) {
         throw new https_1.HttpsError('invalid-argument', 'Missing resumeData or jobDescription');
@@ -404,7 +453,13 @@ exports.tailorResume = (0, https_1.onCall)({ cors: true, }, async (request) => {
         throw new https_1.HttpsError('internal', error.message || 'An error occurred while tailoring the resume.');
     }
 });
-exports.enhanceSection = (0, https_1.onCall)({ cors: true, }, async (request) => {
+exports.enhanceSection = (0, https_1.onCall)({ cors: true }, async (request) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'enhanceSection');
     const { content, jobDescription, sectionType } = request.data;
     const isList = Array.isArray(content);
     const contentString = isList ? content.join(', ') : content;
@@ -453,7 +508,13 @@ exports.enhanceSection = (0, https_1.onCall)({ cors: true, }, async (request) =>
         throw new https_1.HttpsError('internal', error.message);
     }
 });
-exports.deepDiveExperience = (0, https_1.onCall)({ cors: true, }, async (request) => {
+exports.deepDiveExperience = (0, https_1.onCall)({ cors: true }, async (request) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'deepDiveExperience');
     const { experience, jobDescription, numPoints = 15 } = request.data;
     const prompt = `
         You are an expert resume writer and career strategist. Your task is to expand a brief work experience description into a highly detailed, comprehensive, and compelling list of achievements and responsibilities, tailored specifically to a target job description.
@@ -517,7 +578,13 @@ exports.deepDiveExperience = (0, https_1.onCall)({ cors: true, }, async (request
         throw new https_1.HttpsError('internal', error.message);
     }
 });
-exports.updateResumeFromChat = (0, https_1.onCall)({ cors: true, }, async (request) => {
+exports.updateResumeFromChat = (0, https_1.onCall)({ cors: true }, async (request) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'updateResumeFromChat');
     const { instruction, currentResume, history } = request.data;
     const prompt = `
         You are an intelligent resume assistant. Your task is to update a resume based on a user's instruction.
@@ -560,7 +627,13 @@ exports.updateResumeFromChat = (0, https_1.onCall)({ cors: true, }, async (reque
         throw new https_1.HttpsError('internal', error.message);
     }
 });
-exports.getImprovementSuggestion = (0, https_1.onCall)({ cors: true, }, async (request) => {
+exports.getImprovementSuggestion = (0, https_1.onCall)({ cors: true }, async (request) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'You must be signed in to use this feature.');
+    }
+    // Check rate limit
+    await checkRateLimit(request.auth.uid, 'getImprovementSuggestion');
     const { parameterName, parameterAnalysis, resumeData, jobDescription } = request.data;
     const prompt = `
         You are a helpful AI resume assistant. The user wants to improve a specific aspect of their resume based on an analysis they received.

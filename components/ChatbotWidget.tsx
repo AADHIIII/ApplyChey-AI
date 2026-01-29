@@ -14,10 +14,12 @@ interface ChatbotWidgetProps {
     handleApiError: (error: unknown) => string | undefined;
 }
 
+const generateMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
 export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ currentResume, onResumeUpdate, handleApiError }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([
-        { role: 'ai', content: "Hello! I'm your AI Resume Architect. How can I help you refine your profile today?" }
+        { id: 'welcome', role: 'ai', content: "Hello! I'm your AI Resume Architect. How can I help you refine your profile today?" }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +34,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ currentResume, onR
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
 
-        const userMessage: ChatMessage = { role: 'user', content: input };
+        const userMessage: ChatMessage = { id: generateMessageId(), role: 'user', content: input };
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setIsLoading(true);
@@ -40,11 +42,11 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ currentResume, onR
         try {
             const result = await updateResumeFromChat(input, currentResume, messages);
             onResumeUpdate(result.resume);
-            const aiMessage: ChatMessage = { role: 'ai', content: result.confirmationMessage };
+            const aiMessage: ChatMessage = { id: generateMessageId(), role: 'ai', content: result.confirmationMessage };
             setMessages(prev => [...prev, aiMessage]);
         } catch (error) {
             const errorMessage = handleApiError(error) ?? "I encountered an issue. Please try again.";
-            const aiErrorMessage: ChatMessage = { role: 'ai', content: errorMessage };
+            const aiErrorMessage: ChatMessage = { id: generateMessageId(), role: 'ai', content: errorMessage };
             setMessages(prev => [...prev, aiErrorMessage]);
         } finally {
             setIsLoading(false);
@@ -117,12 +119,12 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ currentResume, onR
                         {/* Messages Area */}
                         <div className="flex-1 p-5 overflow-y-auto bg-gradient-to-b from-transparent to-white/50 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
                             <div className="space-y-6">
-                                {messages.map((msg, index) => (
-                                    <motion.div 
+                                {messages.map((msg) => (
+                                    <motion.div
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.3 }}
-                                        key={index} 
+                                        key={msg.id} 
                                         className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                                     >
                                         <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm text-sm leading-relaxed ${
